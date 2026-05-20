@@ -516,36 +516,67 @@ function genRefCode(){
   return 'IMT-2026-0001-'+code;
 }
 
-function loadSheet(){
+async function loadSheet(){
   const bar=document.getElementById('sheet-bar');
   bar.innerHTML='<div class="loading-bar"><i class="ti ti-loader spin"></i> Loading products...</div>';
-  const callbackName='_imt_'+Date.now();
+  if(window._supplierLink)return;
+
+  // Use no-cors fetch to follow Apps Script redirects, then fall back to JSONP
+  // Apps Script redirects GET requests - must use redirect:'follow'
+  try{
+    const resp=await fetch(SCRIPT_URL+'?action=products',{
+      method:'GET',
+      redirect:'follow',
+      headers:{'Accept':'application/json'}
+    });
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const json=await resp.json();
+    if(json&&json.status==='ok'&&json.products&&json.products.length){
+      sheetProducts=json.products.filter(function(p){return p.name;});
+      bar.innerHTML='<div class="sheet-ok"><i class="ti ti-circle-check"></i> '+sheetProducts.length+' products ready</div>';
+      addProductRow('','');
+      return;
+    }
+    throw new Error('empty response');
+  }catch(fetchErr){
+    // JSONP fallback — works around CORS by loading as a script tag
+    loadSheetJSONP(bar);
+  }
+}
+
+function loadSheetJSONP(bar){
+  const callbackName='_imt_cb_'+Date.now();
   const script=document.createElement('script');
+  script.type='text/javascript';
   const timeout=setTimeout(function(){
-    if(window._supplierLink)return;
-    bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Could not load products. Type manually.</div>';
+    if(window._supplierLink){cleanup();return;}
+    bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Could not load products. Type manually or check Apps Script.</div>';
     addProductRow('','');
-    delete window[callbackName];script.remove();
-  },10000);
+    cleanup();
+  },12000);
+  function cleanup(){delete window[callbackName];if(script.parentNode)script.parentNode.removeChild(script);}
   window[callbackName]=function(json){
-    clearTimeout(timeout);script.remove();delete window[callbackName];
+    clearTimeout(timeout);
+    cleanup();
     if(window._supplierLink)return;
     if(json&&json.status==='ok'&&json.products&&json.products.length){
       sheetProducts=json.products.filter(function(p){return p.name;});
       bar.innerHTML='<div class="sheet-ok"><i class="ti ti-circle-check"></i> '+sheetProducts.length+' products ready</div>';
     } else {
-      bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Product list empty. Check Suppliers tab.</div>';
+      bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Product list empty. Check Suppliers tab in your sheet.</div>';
     }
     addProductRow('','');
   };
   script.onerror=function(){
     clearTimeout(timeout);
-    if(window._supplierLink)return;
-    bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Could not reach Apps Script.</div>';
+    if(window._supplierLink){cleanup();return;}
+    // Last resort: show manual entry
+    bar.innerHTML='<div class="sheet-err"><i class="ti ti-alert-circle"></i> Could not load products — type product names manually.</div>';
     addProductRow('','');
-    delete window[callbackName];
+    cleanup();
   };
-  script.src=SCRIPT_URL+'?action=products&callback='+callbackName;
+  // Append timestamp to bust cache
+  script.src=SCRIPT_URL+'?action=products&callback='+callbackName+'&t='+Date.now();
   document.head.appendChild(script);
 }
 
