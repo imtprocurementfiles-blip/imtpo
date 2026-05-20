@@ -269,9 +269,19 @@ tbody tr:hover{background:var(--sf2);}
     <div id="sheet-bar"></div>
     <div id="product-body"></div>
     <button class="add-btn" id="add-prod-btn" onclick="addProductRow('','')"><i class="ti ti-plus"></i> Add product line</button>
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);">
-      <span style="font-size:13px;color:var(--tx2);font-weight:500;">Order total (USD):</span>
-      <span id="grand-total" style="font-size:21px;font-weight:600;font-family:var(--mono);">-</span>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);">
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:13px;color:var(--tx2);font-weight:500;">Products subtotal:</span>
+        <span id="products-subtotal" style="font-size:15px;font-weight:500;font-family:var(--mono);color:var(--tx2);">-</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="font-size:13px;color:var(--tx2);font-weight:500;">Shipping fee:</span>
+        <span id="shipping-fee-display" style="font-size:15px;font-weight:500;font-family:var(--mono);color:var(--tx2);">-</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;padding-top:8px;border-top:2px solid var(--brand3);">
+        <span style="font-size:14px;color:var(--tx);font-weight:700;">Grand total (USD):</span>
+        <span id="grand-total" style="font-size:24px;font-weight:700;font-family:var(--mono);color:var(--brand);">-</span>
+      </div>
     </div>
   </div>
 
@@ -312,6 +322,8 @@ tbody tr:hover{background:var(--sf2);}
       </div>
       <div class="field"><label>Estimated ship date</label><input type="date" id="t-ship"/></div>
       <div class="field"><label>Actual delivery date</label><input type="date" id="t-deliver"/></div>
+      <div class="field"><label>Shipping fee (USD) <span class="req">*</span></label><input type="text" id="ship-fee" placeholder="0.00" oninput="updateOrderSummary()"/></div>
+      <div class="field"><label>Shipping remarks</label><input type="text" id="ship-remarks" placeholder="e.g. Includes insurance, door-to-door delivery"/></div>
     </div>
   </div>
   <div style="font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Per-product shipping status &amp; tracking</div>
@@ -427,6 +439,7 @@ tbody tr:hover{background:var(--sf2);}
     <div class="ack-row" style="margin-top:8px;"><input type="checkbox" id="back2"/><label for="back2">This PO is approved and issued on behalf of IMT Procurement.</label></div>
     <button class="btn-main" onclick="finalizeBuyer()" style="margin-top:1rem;"><i class="ti ti-circle-check"></i> Finalize purchase order (buyer)</button>
     <button class="btn-main secondary" onclick="pushStatusToSheet()" style="margin-top:8px;"><i class="ti ti-cloud-upload"></i> Save PO status to Google Sheet</button>
+    <button class="btn-main secondary" onclick="printInvoice()" style="margin-top:8px;"><i class="ti ti-printer"></i> Print / save invoice</button>
   </div>
 </div>
 </div>
@@ -640,8 +653,21 @@ function calcRow(id){
 function updateTotal(){
   let t=0,any=false;
   document.querySelectorAll('[id^="ptp-"]').forEach(el=>{const v=parseFloat(el.value);if(!isNaN(v)){t+=v;any=true;}});
-  document.getElementById('grand-total').textContent=any?'$'+t.toFixed(2):'-';
-  document.getElementById('pay-total').textContent=any?'$'+t.toFixed(2):'$0.00';
+  const subtotalEl=document.getElementById('products-subtotal');
+  if(subtotalEl)subtotalEl.textContent=any?'$'+t.toFixed(2):'-';
+  updateOrderSummary();
+}
+function updateOrderSummary(){
+  let subtotal=0;
+  document.querySelectorAll('[id^="ptp-"]').forEach(el=>{const v=parseFloat(el.value);if(!isNaN(v))subtotal+=v;});
+  const shipRaw=(document.getElementById('ship-fee')?.value||'').replace(/[^0-9.]/g,'');
+  const ship=parseFloat(shipRaw)||0;
+  const grand=subtotal+ship;
+  const shipEl=document.getElementById('shipping-fee-display');
+  if(shipEl)shipEl.textContent=ship>0?'$'+ship.toFixed(2):'-';
+  const grandEl=document.getElementById('grand-total');
+  if(grandEl)grandEl.textContent=(subtotal>0||ship>0)?'$'+grand.toFixed(2):'-';
+  document.getElementById('pay-total').textContent=(grand>0)?'$'+grand.toFixed(2):'$0.00';
   updatePayCalc();
 }
 
@@ -899,7 +925,7 @@ function submitToSupplier(){
 function generateShareLink(){
   const data={};
   const fields=['b-addr','s-company','s-contact','s-email','s-phone','s-addr',
-    'our-contact','our-contact-email','t-courier','t-ship',
+    'our-contact','our-contact-email','t-courier','t-ship','ship-fee','ship-remarks',
     'buyer-remarks','buyer-action-items','buyer-followup-date','buyer-priority',
     'po-number','po-date'];
   fields.forEach(id=>{const el=document.getElementById(id);if(el)data[id]=el.value||'';});
@@ -943,7 +969,7 @@ function loadFromUrl(){
   try{
     const data=JSON.parse(decodeURIComponent(escape(atob(po))));
     const fields=['b-addr','s-company','s-contact','s-email','s-phone','s-addr',
-      'our-contact','our-contact-email','t-courier','t-ship',
+      'our-contact','our-contact-email','t-courier','t-ship','ship-fee','ship-remarks',
       'buyer-remarks','buyer-action-items','buyer-followup-date','buyer-priority',
       'po-number','po-date'];
     fields.forEach(function(id){const el=document.getElementById(id);if(el&&data[id]!==undefined)el.value=data[id];});
@@ -1034,6 +1060,8 @@ function collectPayload(isUpdate){
     supplier_address:document.getElementById('s-addr')?.value||'',
     products:JSON.stringify(prods),
     courier:document.getElementById('t-courier')?.value||'',
+    shipping_fee:document.getElementById('ship-fee')?.value||'',
+    shipping_remarks:document.getElementById('ship-remarks')?.value||'',
     ship_date:document.getElementById('t-ship')?.value||'',
     pol_seized:document.getElementById('pol-seized')?.value||'',
     pol_lost:document.getElementById('pol-lost')?.value||'',
@@ -1104,6 +1132,145 @@ async function pushStatusToSheet(){
   }catch(e){alert('Could not save status. Check your connection.');}
 }
 
+function printInvoice(){
+  // Collect all data
+  const poNum=document.getElementById('po-number')?.value||'PO-????';
+  const poDate=document.getElementById('po-date')?.value||new Date().toISOString().split('T')[0];
+  const dtLabel=new Date(poDate+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const supplier=document.getElementById('s-company')?.value||'-';
+  const contact=document.getElementById('s-contact')?.value||'-';
+  const email=document.getElementById('s-email')?.value||'-';
+  const phone=document.getElementById('s-phone')?.value||'-';
+  const sAddr=document.getElementById('s-addr')?.value||'-';
+  const bAddr=document.getElementById('b-addr')?.value||'-';
+  const courier=document.getElementById('t-courier')?.value||'-';
+  const shipDate=document.getElementById('t-ship')?.value||'-';
+  const shipFeeRaw=(document.getElementById('ship-fee')?.value||'').replace(/[^0-9.]/g,'');
+  const shipFee=parseFloat(shipFeeRaw)||0;
+
+  // Build product rows
+  let subtotal=0;
+  let prodRows='';
+  let rowNum=1;
+  Object.keys(products).forEach(id=>{
+    const name=document.getElementById('pname-'+id)?.value||'';
+    if(!name)return;
+    const type=document.getElementById('ptype-'+id)?.value||'';
+    const cas=document.getElementById('pcas-'+id)?.value||'';
+    const qty=document.getElementById('pqty-'+id)?.value||'-';
+    const up=document.getElementById('pup-'+id)?.value||'-';
+    const tp=document.getElementById('ptp-'+id)?.value||'-';
+    const batch=document.getElementById('pbatch-'+id)?.value||'-';
+    const mfg=document.getElementById('pmfg-'+id)?.value||'-';
+    const tpv=parseFloat(tp);if(!isNaN(tpv))subtotal+=tpv;
+    prodRows+=`<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;">${rowNum++}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;font-weight:500;">${name}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;color:#4a6080;">${type}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;font-family:monospace;font-size:11px;">${cas}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;text-align:center;">${qty}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;text-align:right;">${up!=='-'?'$'+parseFloat(up).toFixed(2):'-'}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;text-align:right;font-weight:600;">${tp!=='-'?'$'+parseFloat(tp).toFixed(2):'-'}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;font-family:monospace;font-size:11px;">${batch}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8f0fb;font-size:12px;">${mfg}</td>
+    </tr>`;
+  });
+
+  const grand=subtotal+shipFee;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <title>Invoice - ${poNum}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:"DM Sans",Arial,sans-serif;color:#0d1b2a;font-size:13px;line-height:1.6;background:#fff;}
+    .page{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:3px solid #1a3f6f;}
+    .logo-area img{height:56px;}
+    .invoice-title{font-size:28px;font-weight:700;color:#1a3f6f;letter-spacing:-.02em;}
+    .invoice-meta{font-size:12px;color:#4a6080;margin-top:6px;font-family:monospace;}
+    .invoice-meta strong{color:#0d1b2a;}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:2rem;}
+    .info-box h3{font-size:11px;font-weight:700;color:#1a3f6f;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #e8f0fb;}
+    .info-box p{font-size:13px;color:#0d1b2a;margin-bottom:2px;}
+    .info-box .label{font-size:11px;color:#4a6080;text-transform:uppercase;letter-spacing:.05em;margin-top:6px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:1.5rem;}
+    thead th{background:#1a3f6f;color:#fff;font-size:11px;font-weight:600;text-align:left;padding:10px 12px;text-transform:uppercase;letter-spacing:.05em;}
+    thead th:last-child,thead th:nth-last-child(2),thead th:nth-last-child(3){text-align:right;}
+    tbody tr:hover{background:#f7f9fc;}
+    .subtotal-row{display:flex;justify-content:flex-end;}
+    .totals{width:300px;margin-left:auto;margin-bottom:2rem;}
+    .totals table{margin:0;}
+    .totals td{padding:7px 12px;border-bottom:1px solid #e8f0fb;font-size:13px;}
+    .totals td:last-child{text-align:right;font-weight:500;}
+    .totals tr.grand td{font-size:16px;font-weight:700;color:#1a3f6f;border-top:2px solid #1a3f6f;border-bottom:none;}
+    .shipping-row{background:#f0f6ff;}
+    .footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e8f0fb;font-size:11px;color:#8fa5bc;text-align:center;}
+    .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;}
+    .badge-open{background:#dbeafe;color:#1e40af;}
+    .badge-proc{background:#ede9fe;color:#5b21b6;}
+    .badge-closed{background:#dcfce7;color:#166534;}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+  </style></head><body>
+  <div class="page">
+    <div class="header">
+      <div class="logo-area">
+        <div style="font-size:22px;font-weight:700;color:#1a3f6f;">IMT Procurement</div>
+        <div style="font-size:12px;color:#4a6080;margin-top:2px;">Purchase Order Invoice</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="invoice-title">${poNum}</div>
+        <div class="invoice-meta">Date: <strong>${dtLabel}</strong></div>
+        <div class="invoice-meta">Courier: <strong>${courier}</strong> &nbsp;|&nbsp; Ship date: <strong>${shipDate}</strong></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="info-box">
+        <h3>Supplier</h3>
+        <p><strong>${supplier}</strong></p>
+        <div class="label">Contact</div><p>${contact}</p>
+        <div class="label">Email</div><p>${email}</p>
+        <div class="label">Phone</div><p>${phone}</p>
+        <div class="label">Address</div><p>${sAddr}</p>
+      </div>
+      <div class="info-box">
+        <h3>Ship to</h3>
+        <p><strong>IMT Procurement</strong></p>
+        <div class="label">Delivery address</div><p>${bAddr}</p>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:36px;">#</th>
+        <th>Product</th>
+        <th>Type</th>
+        <th>CAS ID</th>
+        <th style="text-align:center;">Qty</th>
+        <th style="text-align:right;">Unit price</th>
+        <th style="text-align:right;">Total</th>
+        <th>Batch #</th>
+        <th>Mfg date</th>
+      </tr></thead>
+      <tbody>${prodRows}</tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tr><td>Products subtotal</td><td>$${subtotal.toFixed(2)}</td></tr>
+        <tr class="shipping-row"><td>Shipping fee</td><td>${shipFee>0?'$'+shipFee.toFixed(2):'Included'}</td></tr>
+        <tr class="grand"><td>Grand total (USD)</td><td>$${grand.toFixed(2)}</td></tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      This invoice was generated from the IMT Procurement Purchase Order system &nbsp;&middot;&nbsp; ${poNum} &nbsp;&middot;&nbsp; ${dtLabel}
+    </div>
+  </div>
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+}
 function finalizeBuyer(){
   if(!document.getElementById('back1').checked||!document.getElementById('back2').checked){alert('Please check both buyer acknowledgment boxes.');return;}
   alert('Purchase order finalized by IMT Procurement.');
