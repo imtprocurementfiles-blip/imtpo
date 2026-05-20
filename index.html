@@ -275,7 +275,6 @@ td .ac-wrap .ti{min-width:220px;}
     </div>
     <div id="sec-our-contact">
     <div class="divider"></div>
-    <div class="note-info"><i class="ti ti-info-circle" style="font-size:15px;flex-shrink:0;margin-top:1px"></i><span>The field below is filled by <strong>IMT Procurement</strong> - enter the name of your contact at this supplier.</span></div>
     <div class="grid g2">
       <div class="field"><label>Our contact at supplier <span class="lock-pill"><i class="ti ti-lock" style="font-size:10px"></i> Buyer only</span></label><input type="text" id="our-contact" placeholder="e.g. John Smith - Sales Manager"/></div>
       <div class="field"><label>Their direct email / line</label><input type="text" id="our-contact-email" placeholder="e.g. john.smith@supplier.com"/></div>
@@ -447,7 +446,7 @@ td .ac-wrap .ti{min-width:220px;}
       <input name="pol_labfail" id="nf16"/><input name="pol_endotoxin" id="nf17"/><input name="pol_heavy_metals" id="nf18"/>
       <button type="submit">Submit</button>
     </form>
-    <button class="btn-main" id="supplier-sub-btn" style="display:none;" onclick="submitSupplier()"><i class="ti ti-send"></i> Submit to buyer</button>
+    <button class="btn-main" id="supplier-sub-btn" style="display:flex;" onclick="submitSupplier()"><i class="ti ti-send"></i> Submit to buyer</button>
   </div>
 
   <!-- Buyer finalization -->
@@ -907,7 +906,7 @@ function setMode(m){
   const amend=document.getElementById('sec-amendments');
   if(amend)amend.style.display=(!isBuyer)?'none':(amendments.length>0||true?'block':'none');
   // Submit buttons
-  document.getElementById('supplier-sub-btn').style.display=!isBuyer?'flex':'none';
+  document.getElementById('supplier-sub-btn').style.display=isBuyer?'none':'flex';
   document.getElementById('sec-buyer-final').style.display=isBuyer?'block':'none';
   // Buyer remarks - always visible (visible to supplier too)
   const brSection=document.getElementById('sec-buyer-remarks');
